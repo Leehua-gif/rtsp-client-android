@@ -93,21 +93,40 @@ class LiveFragment : Fragment() {
         override fun onRtspStatusFailedUnauthorized() {
             if (DEBUG) Log.e(TAG, "onRtspStatusFailedUnauthorized()")
             if (context == null) return
-            onRtspStatusDisconnected()
-            binding.apply {
-                tvStatusSurface.text = "RTSP username or password invalid"
-                pbLoadingSurface.visibility = View.GONE
-            }
+//            onRtspStatusDisconnected()
+//            binding.apply {
+//                tvStatusSurface.text = "RTSP username or password invalid"
+//                pbLoadingSurface.visibility = View.GONE
+//            }
         }
 
         override fun onRtspStatusFailed(message: String?) {
             if (DEBUG) Log.e(TAG, "onRtspStatusFailed(message='$message')")
             if (context == null) return
-            onRtspStatusDisconnected()
-            binding.apply {
-                tvStatusSurface.text = "Error: $message"
-                pbLoadingSurface.visibility = View.GONE
+//            onRtspStatusDisconnected()
+//            binding.apply {
+//                tvStatusSurface.text = "Error: $message"
+//                pbLoadingSurface.visibility = View.GONE
+//            }
+            if (binding.svVideoSurface.isStarted()) {
+                binding.svVideoSurface.stop()
+                stopStatistics()
             }
+            val uri = Uri.parse(liveViewModel.rtspRequest.value)
+            binding.svVideoSurface.apply {
+                init(
+                    uri,
+                    username = liveViewModel.rtspUsername.value,
+                    password = liveViewModel.rtspPassword.value,
+                    userAgent = "rtsp-client-android")
+                debug = binding.llRtspParams.cbDebug.isChecked
+                start(
+                    requestVideo = binding.llRtspParams.cbVideo.isChecked,
+                    requestAudio = binding.llRtspParams.cbAudio.isChecked,
+                    requestApplication = binding.llRtspParams.cbApplication.isChecked
+                )
+            }
+            startStatistics()
         }
 
         override fun onRtspFirstFrameRendered() {
@@ -180,21 +199,40 @@ class LiveFragment : Fragment() {
         override fun onRtspStatusFailedUnauthorized() {
             if (DEBUG) Log.e(TAG, "onRtspStatusFailedUnauthorized()")
             if (context == null) return
-            onRtspStatusDisconnected()
-            binding.apply {
-                tvStatusImage.text = "RTSP username or password invalid"
-                pbLoadingImage.visibility = View.GONE
-            }
+//            onRtspStatusDisconnected()
+//            binding.apply {
+//                tvStatusImage.text = "RTSP username or password invalid"
+//                pbLoadingImage.visibility = View.GONE
+//            }
         }
 
         override fun onRtspStatusFailed(message: String?) {
             if (DEBUG) Log.e(TAG, "onRtspStatusFailed(message='$message')")
             if (context == null) return
-            onRtspStatusDisconnected()
-            binding.apply {
-                tvStatusImage.text = "Error: $message"
-                pbLoadingImage.visibility = View.GONE
+//            onRtspStatusDisconnected()
+//            binding.apply {
+//                tvStatusImage.text = "Error: $message"
+//                pbLoadingImage.visibility = View.GONE
+//            }
+            if (binding.ivVideoImage.isStarted()) {
+                binding.ivVideoImage.stop()
+                stopStatistics()
             }
+            val uri = Uri.parse(liveViewModel.rtspRequest.value)
+            binding.ivVideoImage.apply {
+                init(
+                    uri,
+                    username = liveViewModel.rtspUsername.value,
+                    password = liveViewModel.rtspPassword.value,
+                    userAgent = "rtsp-client-android")
+                debug = binding.llRtspParams.cbDebug.isChecked
+                start(
+                    requestVideo = binding.llRtspParams.cbVideo.isChecked,
+                    requestAudio = binding.llRtspParams.cbAudio.isChecked,
+                    requestApplication = binding.llRtspParams.cbApplication.isChecked
+                )
+            }
+            startStatistics()
         }
 
         override fun onRtspFirstFrameRendered() {
