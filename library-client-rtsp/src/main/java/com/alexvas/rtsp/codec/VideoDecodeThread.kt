@@ -19,7 +19,7 @@ import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
-abstract class VideoDecodeThread (
+abstract class VideoDecodeThread(
     protected val mimeType: String,
     protected val width: Int,
     protected val height: Int,
@@ -37,12 +37,16 @@ abstract class VideoDecodeThread (
     interface VideoDecoderListener {
         /** Video decoder successfully started */
         fun onVideoDecoderStarted() {}
+
         /** Video decoder successfully stopped */
         fun onVideoDecoderStopped() {}
+
         /** Fatal error occurred */
         fun onVideoDecoderFailed(message: String?) {}
+
         /** Resolution changed */
         fun onVideoDecoderFormatChanged(width: Int, height: Int) {}
+
         /** First video frame rendered */
         fun onVideoDecoderFirstFrameRendered() {}
     }
@@ -52,11 +56,15 @@ abstract class VideoDecodeThread (
     protected var firstFrameRendered = false
 
     /** Decoder latency used for statistics */
-    @Volatile private var decoderLatency = -1
+    @Volatile
+    private var decoderLatency = -1
+
     /** Flag for allowing calculating latency */
     private var decoderLatencyRequested = false
+
     /** Network latency used for statistics */
-    @Volatile private var networkLatency = -1
+    @Volatile
+    private var networkLatency = -1
     private var videoDecoderName: String? = null
     private var firstFrameDecoded = false
 
@@ -106,7 +114,8 @@ abstract class VideoDecodeThread (
             val heightAlignment = capabilities.heightAlignment
             Pair(
                 Util.ceilDivide(width, widthAlignment) * widthAlignment,
-                Util.ceilDivide(height, heightAlignment) * heightAlignment)
+                Util.ceilDivide(height, heightAlignment) * heightAlignment
+            )
         }
     }
 
@@ -116,7 +125,7 @@ abstract class VideoDecodeThread (
         // (no problems with width though). Use crop parameters to correctly determine height.
         val hasCrop =
             mediaFormat.containsKey(MediaFormat.KEY_CROP_RIGHT) && mediaFormat.containsKey(MediaFormat.KEY_CROP_LEFT) &&
-            mediaFormat.containsKey(MediaFormat.KEY_CROP_BOTTOM) && mediaFormat.containsKey(MediaFormat.KEY_CROP_TOP)
+                    mediaFormat.containsKey(MediaFormat.KEY_CROP_BOTTOM) && mediaFormat.containsKey(MediaFormat.KEY_CROP_TOP)
         val width =
             if (hasCrop)
                 mediaFormat.getInteger(MediaFormat.KEY_CROP_RIGHT) - mediaFormat.getInteger(MediaFormat.KEY_CROP_LEFT) + 1
@@ -188,6 +197,7 @@ abstract class VideoDecodeThread (
                     MediaCodec.createByCodecName(name)
                 }
             }
+
             DecoderType.SOFTWARE -> {
                 val swDecoders = MediaCodecUtils.getSoftwareDecoders(mimeType)
                 if (swDecoders.isEmpty()) {
@@ -222,10 +232,16 @@ abstract class VideoDecodeThread (
         } else {
             false
         }
-        Log.i(TAG, "[$name] Video decoder '${decoder.name}' started " +
-                "(${if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) { if (decoder.codecInfo.isHardwareAccelerated) "hardware" else "software" } else ""}, " +
-                "${capabilities.capabilitiesToString()}, " +
-                "${if (lowLatencySupport) "w/" else "w/o"} low-latency support)")
+        Log.i(
+            TAG, "[$name] Video decoder '${decoder.name}' started " +
+                    "(${
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            if (decoder.codecInfo.isHardwareAccelerated) "hardware" else "software"
+                        } else ""
+                    }, " +
+                    "${capabilities.capabilitiesToString()}, " +
+                    "${if (lowLatencySupport) "w/" else "w/o"} low-latency support)"
+        )
 
         return decoder
     }
@@ -288,6 +304,8 @@ abstract class VideoDecodeThread (
                 var frameQueuedMsec = System.currentTimeMillis()
                 var frameAlreadyDequeued = false
 
+                var emptyFrameCount = 0
+
                 // Main loop
                 while (!exitFlag.get()) {
                     try {
@@ -302,10 +320,12 @@ abstract class VideoDecodeThread (
 
                             val frame = videoFrameQueue.pop()
                             if (frame == null) {
-                                Log.d(TAG, "Empty video frame")
+                                Log.d(TAG, "Empty video frame ${++emptyFrameCount}")
                                 // Release input buffer
                                 decoder.queueInputBuffer(inIndex, 0, 0, 0L, 0)
+                                if (emptyFrameCount > 30) videoDecoderListener.onVideoDecoderFailed("Empty video frame more than 30 times")
                             } else {
+                                emptyFrameCount = 0
                                 // Add timestamp for keyframe to calculating latency further.
                                 if ((DEBUG || decoderLatencyRequested) && frame.isKeyframe) {
                                     if (keyframesTimestamps.size > 5) {
@@ -369,7 +389,10 @@ abstract class VideoDecodeThread (
                                     // If resolution successfully obtained from SPS frame, use it.
                                     val widthHeightFromDecoder = getWidthHeight(decoder.outputFormat)
                                     val widthHeight = widthHeightFromStream ?: widthHeightFromDecoder
-                                    Log.i(TAG, "Video decoder resolution: ${widthHeightFromDecoder.first}x${widthHeightFromDecoder.second}, stream resolution: ${widthHeightFromStream?.first}x${widthHeightFromStream?.second}")
+                                    Log.i(
+                                        TAG,
+                                        "Video decoder resolution: ${widthHeightFromDecoder.first}x${widthHeightFromDecoder.second}, stream resolution: ${widthHeightFromStream?.first}x${widthHeightFromStream?.second}"
+                                    )
 
 //                                    val widthHeightFromDecoder = getWidthHeight(decoder.outputFormat)
                                     val rotation = if (decoder.outputFormat.containsKey(MediaFormat.KEY_ROTATION)) {
@@ -377,7 +400,10 @@ abstract class VideoDecodeThread (
                                     } else {
                                         // Some devices like Samsung SM-A505U (Android 11) do not allow
                                         // video stream rotation on decoding for hardware decoder
-                                        Log.w(TAG, "Video stream rotation is not supported by this Android device (${Build.MODEL} - ${Build.DEVICE}, codec: '${decoder.name}')")
+                                        Log.w(
+                                            TAG,
+                                            "Video stream rotation is not supported by this Android device (${Build.MODEL} - ${Build.DEVICE}, codec: '${decoder.name}')"
+                                        )
                                         0
                                     }
                                     uiHandler.post {
@@ -417,7 +443,7 @@ abstract class VideoDecodeThread (
                                     }
                                 }
                             }
-                        // For SPS/PPS frame request another frame (IDR)
+                            // For SPS/PPS frame request another frame (IDR)
                         } while (outIndex == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED || outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED)
 //                      } while (outIndex != MediaCodec.INFO_TRY_AGAIN_LATER)
 
@@ -433,7 +459,12 @@ abstract class VideoDecodeThread (
                         stopAndReleaseVideoDecoder(decoder)
                         Log.i(TAG, "Starting software video decoder...")
                         decoder = createVideoDecoderAndStart(DecoderType.SOFTWARE)
-                        Log.i(TAG, "Software video decoder '${decoder.name}' started (${decoder.codecInfo.getCapabilitiesForType(mimeType).capabilitiesToString()})")
+                        Log.i(
+                            TAG,
+                            "Software video decoder '${decoder.name}' started (${
+                                decoder.codecInfo.getCapabilitiesForType(mimeType).capabilitiesToString()
+                            })"
+                        )
                     } catch (e: MediaCodec.CodecException) {
                         Log.w(TAG, "${e.diagnosticInfo}\nisRecoverable: $${e.isRecoverable}, isTransient: ${e.isTransient}")
                         if (e.isRecoverable) {
@@ -459,7 +490,12 @@ abstract class VideoDecodeThread (
                             stopAndReleaseVideoDecoder(decoder)
                             Log.i(TAG, "Starting video software decoder...")
                             decoder = createVideoDecoderAndStart(DecoderType.SOFTWARE)
-                            Log.i(TAG, "Software video decoder '${decoder.name}' started (${decoder.codecInfo.getCapabilitiesForType(mimeType).capabilitiesToString()})")
+                            Log.i(
+                                TAG,
+                                "Software video decoder '${decoder.name}' started (${
+                                    decoder.codecInfo.getCapabilitiesForType(mimeType).capabilitiesToString()
+                                })"
+                            )
                         }
                     } catch (e: Throwable) {
                         Log.e(TAG, "${e.message}", e)
